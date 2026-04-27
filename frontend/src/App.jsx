@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
+const API = "https://humoura.onrender.com";
+
 function App() {
   const [posts, setPosts] = useState([]);
 
@@ -8,8 +10,6 @@ function App() {
   const [password, setPassword] = useState("");
 
   const [content, setContent] = useState("");
-
-  const [editText, setEditText] = useState({});
   const [commentText, setCommentText] = useState({});
 
   const [token, setToken] = useState(localStorage.getItem("token") || "");
@@ -18,15 +18,20 @@ function App() {
 
   // LOGIN
   const login = async () => {
-    const res = await axios.post("http://localhost:5000/api/auth/login", {
-      email,
-      password
-    });
+    try {
+      const res = await axios.post(`${API}/api/auth/login`, {
+        email,
+        password
+      });
 
-    setToken(res.data.token);
-    localStorage.setItem("token", res.data.token);
+      setToken(res.data.token);
+      localStorage.setItem("token", res.data.token);
 
-    fetchPosts();
+      fetchPosts();
+
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   // LOGOUT
@@ -36,9 +41,9 @@ function App() {
     setPosts([]);
   };
 
-  // FETCH
+  // FETCH POSTS
   const fetchPosts = async () => {
-    const res = await axios.get("http://localhost:5000/api/posts");
+    const res = await axios.get(`${API}/api/posts`);
     setPosts(res.data);
   };
 
@@ -46,10 +51,10 @@ function App() {
     if (token) fetchPosts();
   }, [token]);
 
-  // CREATE
+  // CREATE POST
   const createPost = async () => {
     await axios.post(
-      "http://localhost:5000/api/posts/create",
+      `${API}/api/posts/create`,
       { content },
       { headers: { Authorization: token } }
     );
@@ -58,10 +63,10 @@ function App() {
     fetchPosts();
   };
 
-  // LIKE
+  // LIKE POST
   const likePost = async (id) => {
     await axios.put(
-      `http://localhost:5000/api/posts/like/${id}`,
+      `${API}/api/posts/like/${id}`,
       {},
       { headers: { Authorization: token } }
     );
@@ -72,7 +77,7 @@ function App() {
   // COMMENT
   const addComment = async (id) => {
     await axios.post(
-      `http://localhost:5000/api/posts/comment/${id}`,
+      `${API}/api/posts/comment/${id}`,
       { text: commentText[id] },
       { headers: { Authorization: token } }
     );
@@ -81,111 +86,92 @@ function App() {
     fetchPosts();
   };
 
-  // EDIT
-  const editPost = async (id) => {
-    await axios.put(
-      `http://localhost:5000/api/posts/${id}`,
-      { content: editText[id] },
-      { headers: { Authorization: token } }
-    );
-
-    fetchPosts();
-  };
-
-  // DELETE
-  const deletePost = async (id) => {
-    await axios.delete(
-      `http://localhost:5000/api/posts/${id}`,
-      { headers: { Authorization: token } }
-    );
-
-    fetchPosts();
-  };
-
   // LOGIN SCREEN
   if (!token) {
     return (
       <div style={{ padding: 20 }}>
-        <h2>Login</h2>
+        <h2>🔥 Humoura Login</h2>
 
-        <input placeholder="email" onChange={e => setEmail(e.target.value)} />
-        <input placeholder="password" type="password" onChange={e => setPassword(e.target.value)} />
+        <input
+          placeholder="email"
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          placeholder="password"
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
         <button onClick={login}>Login</button>
       </div>
     );
   }
 
+  // MAIN APP
   return (
     <div style={{ maxWidth: 600, margin: "auto", padding: 20 }}>
+
       <h2>🔥 Humoura Feed</h2>
 
       <button onClick={logout}>Logout</button>
 
       <hr />
 
-      {/* CREATE */}
-      <textarea value={content} onChange={e => setContent(e.target.value)} />
+      {/* CREATE POST */}
+      <textarea
+        placeholder="What's on your mind?"
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+      />
+
       <button onClick={createPost}>Post</button>
 
       {/* POSTS */}
-      {posts.map(post => {
-        const isOwner = post.authorId._id === user.id;
+      {posts.map((post) => (
+        <div
+          key={post._id}
+          style={{
+            border: "1px solid #ddd",
+            padding: 10,
+            marginTop: 10
+          }}
+        >
+          <b>{post.authorId.username}</b>
 
-        return (
-          <div key={post._id} style={{ border: "1px solid #ccc", margin: 10, padding: 10 }}>
-            <b>{post.authorId.username}</b>
+          <p>{post.content}</p>
 
-            <p>{post.content}</p>
+          <button onClick={() => likePost(post._id)}>
+            ❤️ {post.likes.length}
+          </button>
 
-            <button onClick={() => likePost(post._id)}>
-              ❤️ {post.likes.length}
+          {/* COMMENTS */}
+          <div>
+            <h4>Comments</h4>
+
+            {post.comments?.map((c) => (
+              <p key={c._id}>
+                <b>{c.userId.username}:</b> {c.text}
+              </p>
+            ))}
+
+            <input
+              placeholder="comment..."
+              value={commentText[post._id] || ""}
+              onChange={(e) =>
+                setCommentText({
+                  ...commentText,
+                  [post._id]: e.target.value
+                })
+              }
+            />
+
+            <button onClick={() => addComment(post._id)}>
+              Send
             </button>
-
-            {/* OWNER CONTROLS */}
-            {isOwner && (
-              <div>
-                <input
-                  placeholder="edit post"
-                  value={editText[post._id] || ""}
-                  onChange={e =>
-                    setEditText({ ...editText, [post._id]: e.target.value })
-                  }
-                />
-
-                <button onClick={() => editPost(post._id)}>Edit</button>
-                <button onClick={() => deletePost(post._id)}>Delete</button>
-              </div>
-            )}
-
-            {/* COMMENTS */}
-            <div>
-              <h4>Comments</h4>
-
-              {post.comments?.map(c => (
-                <p key={c._id}>
-                  <b>{c.userId.username}:</b> {c.text}
-                </p>
-              ))}
-
-              <input
-                placeholder="comment"
-                value={commentText[post._id] || ""}
-                onChange={e =>
-                  setCommentText({
-                    ...commentText,
-                    [post._id]: e.target.value
-                  })
-                }
-              />
-
-              <button onClick={() => addComment(post._id)}>
-                Send
-              </button>
-            </div>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }
