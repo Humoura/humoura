@@ -1,6 +1,8 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
@@ -19,7 +21,7 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.log(err));
 
 // =========================
-// USER MODEL
+// MODELS
 // =========================
 const userSchema = new mongoose.Schema({
   username: String,
@@ -29,9 +31,6 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model("User", userSchema);
 
-// =========================
-// POST MODEL
-// =========================
 const postSchema = new mongoose.Schema({
   content: String,
   authorId: {
@@ -51,6 +50,25 @@ const postSchema = new mongoose.Schema({
 const Post = mongoose.model("Post", postSchema);
 
 // =========================
+// AUTH MIDDLEWARE
+// =========================
+const auth = async (req, res, next) => {
+  try {
+    const token = req.header("Authorization");
+
+    if (!token) {
+      return res.status(401).json({ message: "No token" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ message: "Invalid token" });
+  }
+};
+
+// =========================
 // HOME
 // =========================
 app.get("/", (req, res) => {
@@ -67,7 +85,13 @@ app.post("/api/auth/register", async (req, res) => {
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ message: "User exists" });
 
-    const user = await User.create({ username, email, password });
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      username,
+      email,
+      password: hashedPassword
+    });
 
     res.json({ message: "User created", user });
 
@@ -86,12 +110,18 @@ app.post("/api/auth/login", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    if (user.password !== password)
-      return res.status(400).json({ message: "Wrong password" });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(400).json({ message: "Wrong password" });
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
     res.json({
       message: "Login successful",
-      token: "demo-token-" + user._id,
+      token,
       user
     });
 
@@ -103,16 +133,13 @@ app.post("/api/auth/login", async (req, res) => {
 // =========================
 // CREATE POST
 // =========================
-app.post("/api/posts/create", async (req, res) => {
+app.post("/api/posts/create", auth, async (req, res) => {
   try {
     const { content } = req.body;
 
-    const user = await User.findOne();
-    if (!user) return res.status(400).json({ message: "No user found" });
-
     const post = await Post.create({
       content,
-      authorId: user._id
+      authorId: req.user.id
     });
 
     res.json({ message: "Post created", post });
@@ -142,17 +169,16 @@ app.get("/api/posts", async (req, res) => {
 // =========================
 // LIKE POST
 // =========================
-app.put("/api/posts/like/:id", async (req, res) => {
+app.put("/api/posts/like/:id", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    const user = await User.findOne();
 
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    if (post.likes.includes(user._id)) {
-      post.likes.pull(user._id);
+    if (post.likes.includes(req.user.id)) {
+      post.likes.pull(req.user.id);
     } else {
-      post.likes.push(user._id);
+      post.likes.push(req.user.id);
     }
 
     await post.save();
@@ -167,15 +193,14 @@ app.put("/api/posts/like/:id", async (req, res) => {
 // =========================
 // COMMENT
 // =========================
-app.post("/api/posts/comment/:id", async (req, res) => {
+app.post("/api/posts/comment/:id", auth, async (req, res) => {
   try {
     const { text } = req.body;
 
     const post = await Post.findById(req.params.id);
-    const user = await User.findOne();
 
     post.comments.push({
-      userId: user._id,
+      userId: req.user.id,
       text
     });
 
