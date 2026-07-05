@@ -51,6 +51,26 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Check if admin login
+    if (email === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
+      const token = jwt.sign(
+        { id: "admin_user", isAdmin: true },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      return res.json({
+        message: "Admin login successful",
+        token,
+        user: {
+          id: "admin_user",
+          username: "admin_humoura",
+          email: "admin@humoura.com",
+          isAdmin: true
+        }
+      });
+    }
+
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -75,7 +95,8 @@ const loginUser = async (req, res) => {
       user: {
         id: user._id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        
       }
     });
 
