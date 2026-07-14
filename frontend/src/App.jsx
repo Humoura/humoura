@@ -301,7 +301,7 @@ export default function App() {
   const fetchOtherUserProfile = async (id) => {
     try {
       setLoadingProfile(true);
-      const res = await axios.get(`${API}/api/users/profile/${id}`, {
+      const res = await axios.get(`${API}/api/users/${id}`, {
         headers: { Authorization: token },
       });
       setViewingUserProfile(res.data);
@@ -849,7 +849,7 @@ export default function App() {
     if (!container) return;
 
     let lastWheelTime = 0;
-    const wheelCooldown = 300;
+    const wheelCooldown = 700;
 
     const handleWheel = (e) => {
       const now = Date.now();
@@ -904,16 +904,26 @@ export default function App() {
   // =========================
   // SCROLL LISTENER
   // =========================
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY < lastScrollY || currentScrollY < 100) setShowCreateBox(true);
-      else if (currentScrollY > lastScrollY && currentScrollY > 100) setShowCreateBox(false);
-      setLastScrollY(currentScrollY);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
+
+useEffect(() => {
+  const handleScroll = () => {
+    const currentScrollY = window.scrollY;
+
+    if (currentScrollY < lastScrollY || currentScrollY < 100) {
+      setShowCreateBox(true);
+    } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+      setShowCreateBox(false);
+    }
+
+    setLastScrollY(currentScrollY);
+  };
+
+  window.addEventListener("scroll", handleScroll);
+
+  return () => {
+    window.removeEventListener("scroll", handleScroll);
+  };
+}, [lastScrollY]);
 
   // =========================
   // LOGIN PAGE
